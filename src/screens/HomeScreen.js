@@ -16,6 +16,7 @@ export default function HomeScreen({ navigation }) {
   const [recentBills, setRecentBills] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const itemCount = useBillStore(s => s.getItemCount());
+  const isSaved = useBillStore(s => s.isSaved);
 
   const loadData = useCallback(async () => {
     const [statsRes, billsRes] = await Promise.all([
@@ -104,8 +105,8 @@ export default function HomeScreen({ navigation }) {
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* ── Continue Bill (if cart not empty) ───────────── */}
-          {itemCount > 0 && (
+          {/* ── Continue Bill (if cart not empty and not saved) ───────────── */}
+          {itemCount > 0 && !isSaved && (
             <TouchableOpacity
               onPress={() => navigation.navigate('NewBillTab', { screen: 'Bill' })}
               style={styles.continueBillBtn}
@@ -120,9 +121,15 @@ export default function HomeScreen({ navigation }) {
           {/* ── Recent Bills ─────────────────────────────────── */}
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Bills</Text>
-            <TouchableOpacity onPress={loadData}>
-              <Ionicons name="refresh" size={18} color={COLORS.primary} />
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: SPACING.lg, alignItems: 'center' }}>
+              <TouchableOpacity onPress={() => navigation.navigate('SalesHistory')} style={styles.historyBtn}>
+                <Ionicons name="time-outline" size={16} color={COLORS.primary} />
+                <Text style={styles.historyBtnText}>View History</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={loadData}>
+                <Ionicons name="refresh" size={18} color={COLORS.primary} />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {recentBills.length === 0 ? (
@@ -133,16 +140,22 @@ export default function HomeScreen({ navigation }) {
             </View>
           ) : (
             recentBills.map(bill => (
-              <GlassCard key={bill.id} style={styles.billCard}>
-                <View style={styles.billInfo}>
-                  <Text style={styles.billCustomer}>{bill.customer_name}</Text>
-                  <Text style={styles.billNo}>Bill #{bill.bill_number}</Text>
-                </View>
-                <View style={styles.billMeta}>
-                  <Text style={styles.billTotal}>₹{bill.total_amount.toLocaleString('en-IN')}</Text>
-                  <Text style={styles.billDate}>{new Date(bill.created_at).toLocaleDateString()}</Text>
-                </View>
-              </GlassCard>
+              <TouchableOpacity
+                key={bill.id}
+                onPress={() => navigation.navigate('NewBillTab', { screen: 'BillPreview', params: { bill } })}
+                activeOpacity={0.8}
+              >
+                <GlassCard style={styles.billCard}>
+                  <View style={styles.billInfo}>
+                    <Text style={styles.billCustomer}>{bill.customer_name}</Text>
+                    <Text style={styles.billNo}>Bill #{bill.bill_number}</Text>
+                  </View>
+                  <View style={styles.billMeta}>
+                    <Text style={styles.billTotal}>₹{bill.total_amount.toLocaleString('en-IN')}</Text>
+                    <Text style={styles.billDate}>{new Date(bill.created_at).toLocaleDateString()}</Text>
+                  </View>
+                </GlassCard>
+              </TouchableOpacity>
             ))
           )}
         </View>
@@ -217,6 +230,20 @@ const styles = StyleSheet.create({
   continueText: { color: COLORS.primary, fontWeight: FONTS.weights.bold, fontSize: 14 },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md, marginTop: SPACING.sm },
   sectionTitle: { fontSize: 20, color: COLORS.textDark, fontWeight: FONTS.weights.bold },
+  historyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: COLORS.primary + '10',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: RADIUS.full,
+  },
+  historyBtnText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: FONTS.weights.semibold,
+  },
   billCard: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, marginBottom: 12 },
   billInfo: { gap: 4 },
   billCustomer: { fontSize: 16, color: COLORS.textDark, fontWeight: FONTS.weights.bold },

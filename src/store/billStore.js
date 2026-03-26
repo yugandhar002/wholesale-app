@@ -4,6 +4,7 @@ export const useBillStore = create((set, get) => ({
   items: [], // [{ product, quantity }]
   customerName: '',
   discount: 0,
+  isSaved: false,
 
   // ── Actions ──────────────────────────────────────────────────────────────────
   addItem: (product) => {
@@ -18,12 +19,12 @@ export const useBillStore = create((set, get) => ({
         ),
       });
     } else {
-      set({ items: [...items, { product, quantity: 1 }] });
+      set({ items: [...items, { product, quantity: 1 }], isSaved: false });
     }
   },
 
   removeItem: (productId) => {
-    set({ items: get().items.filter(i => i.product.id !== productId) });
+    set({ items: get().items.filter(i => i.product.id !== productId), isSaved: false });
   },
 
   updateQuantity: (productId, quantity) => {
@@ -38,10 +39,11 @@ export const useBillStore = create((set, get) => ({
     }
   },
 
-  setCustomerName: (name) => set({ customerName: name }),
-  setDiscount: (discount) => set({ discount: Number(discount) || 0 }),
+  setCustomerName: (name) => set({ customerName: name, isSaved: false }),
+  setDiscount: (discount) => set({ discount: Number(discount) || 0, isSaved: false }),
+  setIsSaved: (val) => set({ isSaved: val }),
 
-  clearBill: () => set({ items: [], customerName: '', discount: 0 }),
+  clearBill: () => set({ items: [], customerName: '', discount: 0, isSaved: false }),
 
   // ── Computed ─────────────────────────────────────────────────────────────────
   getSubtotal: () => {

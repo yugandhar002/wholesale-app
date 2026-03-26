@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, SafeAreaView, StatusBar,
+  View, Text, StyleSheet, FlatList, StatusBar,
   TouchableOpacity, Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import SearchBar from '../components/SearchBar';
@@ -165,11 +166,11 @@ export default function ProductManagementScreen() {
             <Text style={styles.modalTitle}>{editingId ? 'Edit Product' : 'Add New Product'}</Text>
 
             {[
-              { label: 'Product Name *', key: 'name', placeholder: 'e.g. Basmati Rice (5kg)' },
-              { label: 'Category', key: 'category', placeholder: 'e.g. Grains' },
-              { label: 'MRP (₹)', key: 'mrp', placeholder: 'e.g. 350', numeric: true },
-              { label: 'Wholesale Rate (₹) *', key: 'wholesale_rate', placeholder: 'e.g. 320', numeric: true },
-              { label: 'Unit', key: 'unit', placeholder: 'e.g. Kg, Bag, Bottle, Pack' },
+              { label: 'Product Name *', key: 'name', placeholder: 'e.g. Mysore sandle Soap (80gm)' },
+              { label: 'Category', key: 'category', placeholder: 'e.g. Soap' },
+              { label: 'MRP (₹)', key: 'mrp', placeholder: 'e.g. 40', numeric: true },
+              { label: 'Wholesale Rate (₹) *', key: 'wholesale_rate', placeholder: 'e.g. 50', numeric: true },
+              { label: 'Unit', key: 'unit', placeholder: 'e.g. Pc, Dozen, Mala, Pack' },
             ].map(field => (
               <View key={field.key} style={styles.formGroup}>
                 <Text style={styles.formLabel}>{field.label}</Text>

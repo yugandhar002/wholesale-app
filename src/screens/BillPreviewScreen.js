@@ -12,43 +12,66 @@ import { useBillStore } from '../store/billStore';
 import { saveBill, generateBillNumber } from '../services/billService';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../theme';
 
-export default function BillPreviewScreen({ navigation }) {
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [billNo] = useState(() => generateBillNumber());
+export default function BillPreviewScreen({ navigation, route }) {
+  const pastBill = route.params?.bill;
 
-  const items = useBillStore(s => s.items);
-  const customerName = useBillStore(s => s.customerName);
-  const discount = useBillStore(s => s.discount);
-  const getSubtotal = useBillStore(s => s.getSubtotal);
-  const getTotal = useBillStore(s => s.getTotal);
+  const storeItems = useBillStore(s => s.items);
+  const storeCustomer = useBillStore(s => s.customerName);
+  const storeDiscount = useBillStore(s => s.discount);
+  const storeSubtotal = useBillStore(s => s.getSubtotal());
+  const storeTotal = useBillStore(s => s.getTotal());
   const clearBill = useBillStore(s => s.clearBill);
+  const setIsSaved = useBillStore(s => s.setIsSaved);
 
-  const subtotal = getSubtotal();
-  const totalSavings = items.reduce((sum, i) => {
-    const mrp = i.product.mrp || i.product.wholesale_rate;
-    return sum + (mrp - i.product.wholesale_rate) * i.quantity;
-  }, 0);
-  const total = getTotal();
-  const date = new Date().toLocaleDateString('en-IN', {
-    day: 'numeric', month: 'long', year: 'numeric',
+  // Snapshot data when screen opens so it persists even if store is cleared
+  // If we're viewing a past bill, use its data instead of the store
+  const [billItems] = useState(pastBill ? pastBill.bill_items || [] : [...storeItems]);
+  const [custName] = useState(pastBill ? pastBill.customer_name : storeCustomer);
+  const [billDiscount] = useState(pastBill ? (pastBill.discount || 0) : storeDiscount);
+  const [subtotal] = useState(pastBill ? (pastBill.subtotal || pastBill.total_amount) : storeSubtotal);
+  const [total] = useState(pastBill ? pastBill.total_amount : storeTotal);
+
+  const [totalSavings] = useState(() => {
+    return billItems.reduce((sum, i) => {
+      const mrp = i.product?.mrp || i.mrp || i.product?.wholesale_rate || i.rate || 0;
+      const rate = i.product?.wholesale_rate || i.rate || 0;
+      return sum + (mrp - rate) * i.quantity;
+    }, 0);
   });
-  const time = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(!!pastBill);
+  const [billNo] = useState(() => pastBill ? pastBill.bill_number : generateBillNumber());
+
+  const dateStr = pastBill
+    ? new Date(pastBill.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    : new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  const timeStr = pastBill
+    ? new Date(pastBill.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+    : new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
   // ── PDF HTML Template ────────────────────────────────────────────────────────
   const buildHtml = () => {
-    const rows = items.map(i => `
+    const rows = billItems.map(i => {
+      const name = i.product_name || i.product?.name;
+      const unit = (i.product?.unit) || '';
+      const mrp = i.mrp || i.product?.mrp || i.rate || i.product?.wholesale_rate || 0;
+      const rate = i.rate || i.product?.wholesale_rate || 0;
+
+      return `
       <tr>
         <td>
-          <div style="font-weight:600">${i.product.name}</div>
-          ${i.product.mrp > i.product.wholesale_rate ? `<div style="font-size:10px;color:#8A80AA">MRP: ₹${i.product.mrp}</div>` : ''}
+          <div style="font-weight:600">${name}</div>
         </td>
-        <td style="text-align:center">${i.product.unit}</td>
+        <td style="text-align:center">${unit}</td>
         <td style="text-align:center">${i.quantity}</td>
-        <td style="text-align:right">₹${i.product.wholesale_rate.toLocaleString('en-IN')}</td>
-        <td style="text-align:right;font-weight:700">₹${(i.product.wholesale_rate * i.quantity).toLocaleString('en-IN')}</td>
+        <td style="text-align:right">₹${mrp.toLocaleString('en-IN')}</td>
+        <td style="text-align:right">₹${rate.toLocaleString('en-IN')}</td>
+        <td style="text-align:right;font-weight:700">₹${(rate * i.quantity).toLocaleString('en-IN')}</td>
       </tr>
-    `).join('');
+    `;
+    }).join('');
 
     return `<!DOCTYPE html>
 <html>
@@ -56,9 +79,12 @@ export default function BillPreviewScreen({ navigation }) {
 <meta charset="UTF-8" />
 <style>
   body { font-family: Arial, sans-serif; margin: 30px; color: #1A1033; font-size: 13px; }
-  .header { text-align:center; margin-bottom: 24px; }
-  .shop-name { font-size: 28px; font-weight: 800; color: #6C3FE8; letter-spacing: -0.5px; }
-  .sub { color: #8A80AA; font-size: 12px; margin-top: 4px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 2px solid #6C3FE8; padding-bottom: 15px; }
+  .shop-info { flex: 1; }
+  .shop-name { font-size: 32px; font-weight: 800; color: #6C3FE8; letter-spacing: -1px; text-transform: uppercase; margin: 0; }
+  .shop-sub { color: #8A80AA; font-size: 11px; margin-top: 4px; font-weight: 500; line-height: 1.5; }
+  .address-info { text-align: right; max-width: 250px; }
+  .address-text { color: #555; font-size: 11px; line-height: 1.4; font-weight: 500; }
   .meta { display:flex; justify-content:space-between; margin-bottom: 20px; background: #F0F2FF; padding: 12px 16px; border-radius: 8px; }
   .meta-col .label { color: #8A80AA; font-size: 11px; text-transform: uppercase; font-weight: 600; }
   .meta-col .value { font-size: 13px; font-weight: 700; color: #1A1033; margin-top: 3px; }
@@ -76,8 +102,19 @@ export default function BillPreviewScreen({ navigation }) {
 </head>
 <body>
   <div class="header">
-    <div class="shop-name">🏪 Rajeshwari Wholesale</div>
-    <div class="sub">Wholesale Billing System</div>
+    <div class="shop-info">
+      <div class="shop-name">Rajeshwari Wholesale</div>
+      <div class="shop-sub">
+        Ph: 7873574186, 9437067428<br/>
+        Email: gkrishna0744@gmail.com
+      </div>
+    </div>
+    <div class="address-info">
+      <div class="address-text">
+        Infront of kanha xerox, beside Utkal grameen bank,<br/>
+        Main road Muniguda, Dist Rayagada
+      </div>
+    </div>
   </div>
   <div class="meta">
     <div class="meta-col">
@@ -86,20 +123,22 @@ export default function BillPreviewScreen({ navigation }) {
     </div>
     <div class="meta-col">
       <div class="label">Date & Time</div>
-      <div class="value">${date}, ${time}</div>
+      <div class="value">${dateStr}, ${timeStr}</div>
     </div>
     <div class="meta-col">
       <div class="label">Customer</div>
-      <div class="value">${customerName || 'Walk-in Customer'}</div>
+      <div class="value">${custName || 'Walk-in Customer'}</div>
     </div>
   </div>
   <table>
     <thead>
       <tr>
-        <th>Product</th><th style="text-align:center">Unit</th>
-        <th style="text-align:center">Qty</th>
-        <th style="text-align:right">Rate</th>
-        <th style="text-align:right">Amount</th>
+        <th style="width:35%">Product</th>
+        <th style="text-align:center;width:10%">Unit</th>
+        <th style="text-align:center;width:8%">Qty</th>
+        <th style="text-align:right;width:15%">MRP</th>
+        <th style="text-align:right;width:15%">WS Rate</th>
+        <th style="text-align:right;width:17%">Amount</th>
       </tr>
     </thead>
     <tbody>${rows}</tbody>
@@ -107,7 +146,7 @@ export default function BillPreviewScreen({ navigation }) {
   <div class="totals">
     <div class="totals-row"><span>Subtotal</span><span>₹${subtotal.toLocaleString('en-IN')}</span></div>
     ${totalSavings > 0 ? `<div class="totals-row"><span style="color:#6C3FE8">Wholesale Savings</span><span style="color:#6C3FE8">₹${totalSavings.toLocaleString('en-IN')}</span></div>` : ''}
-    ${discount > 0 ? `<div class="totals-row"><span style="color:#38ef7d">Additional Discount</span><span style="color:#38ef7d">- ₹${Number(discount).toLocaleString('en-IN')}</span></div>` : ''}
+    ${billDiscount > 0 ? `<div class="totals-row"><span style="color:#38ef7d">Additional Discount</span><span style="color:#38ef7d">- ₹${Number(billDiscount).toLocaleString('en-IN')}</span></div>` : ''}
     <div class="totals-divider"></div>
     <div class="totals-row"><span class="total-final">Total</span><span class="total-final">₹${total.toLocaleString('en-IN')}</span></div>
   </div>
@@ -137,10 +176,10 @@ export default function BillPreviewScreen({ navigation }) {
     if (saved) return;
     setSaving(true);
     const { error } = await saveBill({
-      customerName: customerName || 'Walk-in Customer',
-      items,
+      customerName: custName || 'Walk-in Customer',
+      items: billItems,
       subtotal,
-      discount,
+      discount: billDiscount,
       total,
       billNumber: billNo,
     });
@@ -149,10 +188,17 @@ export default function BillPreviewScreen({ navigation }) {
       Alert.alert('Save Failed', error.message);
     } else {
       setSaved(true);
+      setIsSaved(true);
+      clearBill(); // Clear global store for next bill
     }
   };
 
   const handleNewBill = () => {
+    if (saved) {
+      navigation.navigate('Home');
+      return;
+    }
+
     Alert.alert('New Bill', 'Start a new bill? This will clear the current one.', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -176,7 +222,7 @@ export default function BillPreviewScreen({ navigation }) {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={COLORS.primary} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Bill Preview</Text>
+        <Text style={styles.headerTitle}>{pastBill ? 'Bill Detail' : 'Review Bill'}</Text>
         <TouchableOpacity onPress={handleExportPDF} style={styles.pdfBtn}>
           <Ionicons name="share-outline" size={20} color={COLORS.primary} />
         </TouchableOpacity>
@@ -192,8 +238,7 @@ export default function BillPreviewScreen({ navigation }) {
             end={{ x: 1, y: 1 }}
             style={styles.docHeader}
           >
-            <Text style={styles.docShopName}>🏪 Rajeshwari Wholesale</Text>
-            <Text style={styles.docTagline}>Wholesale Billing System</Text>
+            <Text style={styles.docShopName}>Rajeshwari Wholesale</Text>
           </LinearGradient>
 
           {/* Meta row */}
@@ -204,18 +249,18 @@ export default function BillPreviewScreen({ navigation }) {
             </View>
             <View style={styles.metaBlock}>
               <Text style={styles.metaLabel}>DATE</Text>
-              <Text style={styles.metaValue}>{date}</Text>
+              <Text style={styles.metaValue}>{dateStr}</Text>
             </View>
             <View style={styles.metaBlock}>
               <Text style={styles.metaLabel}>TIME</Text>
-              <Text style={styles.metaValue}>{time}</Text>
+              <Text style={styles.metaValue}>{timeStr}</Text>
             </View>
           </View>
 
           {/* Customer */}
           <View style={styles.customerRow}>
             <Ionicons name="person-circle-outline" size={20} color={COLORS.primary} />
-            <Text style={styles.customerName}>{customerName || 'Walk-in Customer'}</Text>
+            <Text style={styles.customerName}>{custName || 'Walk-in Customer'}</Text>
           </View>
 
           {/* Divider */}
@@ -223,31 +268,35 @@ export default function BillPreviewScreen({ navigation }) {
 
           {/* Table header */}
           <View style={styles.tableHeader}>
-            <Text style={[styles.th, { flex: 3 }]}>PRODUCT</Text>
-            <Text style={[styles.th, styles.thCenter, { flex: 1 }]}>QTY</Text>
-            <Text style={[styles.th, styles.thRight, { flex: 1.2 }]}>RATE</Text>
-            <Text style={[styles.th, styles.thRight, { flex: 1.5 }]}>AMOUNT</Text>
+            <Text style={[styles.th, { flex: 2.5 }]}>PRODUCT</Text>
+            <Text style={[styles.th, styles.thCenter, { flex: 0.7 }]}>QTY</Text>
+            <Text style={[styles.th, styles.thRight, { flex: 1.1 }]}>MRP</Text>
+            <Text style={[styles.th, styles.thRight, { flex: 1.1 }]}>WS RATE</Text>
+            <Text style={[styles.th, styles.thRight, { flex: 1.3 }]}>AMOUNT</Text>
           </View>
 
           {/* Items */}
-          {items.map((item, idx) => (
-            <View key={item.product.id} style={[styles.tableRow, idx % 2 === 1 && styles.tableRowAlt]}>
-              <View style={{ flex: 3 }}>
-                <Text style={styles.td} numberOfLines={2}>{item.product.name}</Text>
-                <View style={{ flexDirection: 'row', gap: 4, alignItems: 'center' }}>
-                  {item.product.mrp > item.product.wholesale_rate && (
-                    <Text style={styles.tdSub}>MRP: ₹{item.product.mrp}</Text>
-                  )}
-                  <Text style={styles.tdSub}>{item.product.unit}</Text>
+          {billItems.map((item, idx) => {
+            const name = item.product_name || item.product?.name;
+            const unit = item.product?.unit || '';
+            const mrp = item.mrp || item.product?.mrp || item.rate || item.product?.wholesale_rate || 0;
+            const rate = item.rate || item.product?.wholesale_rate || 0;
+
+            return (
+              <View key={item.id || item.product?.id || idx} style={[styles.tableRow, idx % 2 === 1 && styles.tableRowAlt]}>
+                <View style={{ flex: 2.5 }}>
+                  <Text style={styles.td} numberOfLines={2}>{name}</Text>
+                  <Text style={styles.tdSub}>{unit}</Text>
                 </View>
+                <Text style={[styles.td, styles.tdCenter, { flex: 0.7 }]}>{item.quantity}</Text>
+                <Text style={[styles.td, styles.tdRight, { flex: 1.1 }]}>₹{mrp}</Text>
+                <Text style={[styles.td, styles.tdRight, { flex: 1.1 }]}>₹{rate}</Text>
+                <Text style={[styles.td, styles.tdRight, { flex: 1.3, color: COLORS.primary, fontWeight: FONTS.weights.bold }]}>
+                  ₹{(rate * item.quantity).toLocaleString('en-IN')}
+                </Text>
               </View>
-              <Text style={[styles.td, styles.tdCenter, { flex: 1 }]}>{item.quantity}</Text>
-              <Text style={[styles.td, styles.tdRight, { flex: 1.2 }]}>₹{item.product.wholesale_rate}</Text>
-              <Text style={[styles.td, styles.tdRight, { flex: 1.5, color: COLORS.primary, fontWeight: FONTS.weights.bold }]}>
-                ₹{(item.product.wholesale_rate * item.quantity).toLocaleString('en-IN')}
-              </Text>
-            </View>
-          ))}
+            );
+          })}
 
           {/* Totals */}
           <View style={styles.totalsSection}>
@@ -261,10 +310,10 @@ export default function BillPreviewScreen({ navigation }) {
                 <Text style={[styles.totalValue, { color: COLORS.primary }]}>₹{totalSavings.toLocaleString('en-IN')}</Text>
               </View>
             )}
-            {discount > 0 && (
+            {billDiscount > 0 && (
               <View style={styles.totalRow}>
                 <Text style={[styles.totalLabel, { color: COLORS.success }]}>Extra Discount</Text>
-                <Text style={[styles.totalValue, { color: COLORS.success }]}>- ₹{Number(discount).toLocaleString('en-IN')}</Text>
+                <Text style={[styles.totalValue, { color: COLORS.success }]}>- ₹{Number(billDiscount).toLocaleString('en-IN')}</Text>
               </View>
             )}
             <View style={styles.grandTotalRow}>
@@ -285,16 +334,18 @@ export default function BillPreviewScreen({ navigation }) {
 
         {/* Actions */}
         <View style={styles.actions}>
-          <GlassButton
-            title={saved ? '✓ Bill Saved' : saving ? 'Saving...' : 'Save Bill'}
-            variant={saved ? 'success' : 'glass'}
-            size="lg"
-            fullWidth
-            loading={saving}
-            disabled={saved}
-            onPress={handleSaveBill}
-            style={{ marginBottom: SPACING.md }}
-          />
+          {!pastBill && (
+            <GlassButton
+              title={saved ? '✓ Bill Saved' : saving ? 'Saving...' : 'Save Bill'}
+              variant={saved ? 'success' : 'glass'}
+              size="lg"
+              fullWidth
+              loading={saving}
+              disabled={saved}
+              onPress={handleSaveBill}
+              style={{ marginBottom: SPACING.md }}
+            />
+          )}
           <GlassButton
             title="Export PDF / Share"
             variant="primary"
@@ -304,14 +355,14 @@ export default function BillPreviewScreen({ navigation }) {
             onPress={handleExportPDF}
             style={{ marginBottom: SPACING.md }}
           />
-          <GlassButton
-            title="New Bill"
+          {/* <GlassButton
+            title={saved ? "Back to Dashboard" : "New Bill"}
             variant="outline"
             size="md"
             fullWidth
-            icon={<Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />}
+            icon={<Ionicons name={saved ? "home-outline" : "add-circle-outline"} size={18} color={COLORS.primary} />}
             onPress={handleNewBill}
-          />
+          /> */}
         </View>
 
         <View style={{ height: 40 }} />

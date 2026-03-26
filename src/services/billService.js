@@ -1,5 +1,21 @@
 import { supabase, IS_MOCK } from '../lib/supabase';
 
+const getLocalDateString = (date) => {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getLocalDayRange = () => {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date();
+  end.setHours(23, 59, 59, 999);
+  return { start: start.toISOString(), end: end.toISOString() };
+};
+
 const MOCK_BILLS = [];
 
 export async function saveBill({ customerName, items, subtotal, discount, total, billNumber }) {
@@ -65,8 +81,8 @@ export async function getRecentBills(limit = 10) {
 
 export async function getSalesStats() {
   if (IS_MOCK) {
-    const today = new Date().toISOString().split('T')[0];
-    const todayBills = MOCK_BILLS.filter(b => b.created_at.startsWith(today));
+    const today = getLocalDateString(new Date());
+    const todayBills = MOCK_BILLS.filter(b => getLocalDateString(b.created_at) === today);
     const todaySales = todayBills.reduce((sum, b) => sum + b.total_amount, 0);
     return {
       data: {
@@ -79,14 +95,14 @@ export async function getSalesStats() {
   }
 
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const { start, end } = getLocalDayRange();
     
     // Get today's bills for totals
     const { data: todayData, error: todayError } = await supabase
       .from('bills')
       .select('total_amount')
-      .gte('created_at', `${today}T00:00:00`)
-      .lte('created_at', `${today}T23:59:59`);
+      .gte('created_at', start)
+      .lte('created_at', end);
 
     if (todayError) throw todayError;
 
@@ -110,6 +126,55 @@ export async function getSalesStats() {
   } catch (error) {
     console.error('Error fetching sales stats:', error);
     return { data: { todaySales: 0, billsToday: 0, recentBillsCount: 0 }, error };
+  }
+}
+
+export async function getDailySalesHistory() {
+  if (IS_MOCK) {
+    // Group MOCK_BILLS by day using local date
+    const history = MOCK_BILLS.reduce((acc, bill) => {
+      const date = getLocalDateString(bill.created_at);
+      if (!acc[date]) {
+        acc[date] = { date, total: 0, count: 0, bills: [] };
+      }
+      acc[date].total += bill.total_amount;
+      acc[date].count += 1;
+      acc[date].bills.push(bill);
+      return acc;
+    }, {});
+    
+    return { 
+      data: Object.values(history).sort((a, b) => b.date.localeCompare(a.date)), 
+      error: null 
+    };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('bills')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const history = data.reduce((acc, bill) => {
+      const date = getLocalDateString(bill.created_at);
+      if (!acc[date]) {
+        acc[date] = { date, total: 0, count: 0, bills: [] };
+      }
+      acc[date].total += (bill.total_amount || 0);
+      acc[date].count += 1;
+      acc[date].bills.push(bill);
+      return acc;
+    }, {});
+
+    return { 
+      data: Object.values(history), 
+      error: null 
+    };
+  } catch (error) {
+    console.error('Error fetching sales history:', error);
+    return { data: [], error };
   }
 }
 

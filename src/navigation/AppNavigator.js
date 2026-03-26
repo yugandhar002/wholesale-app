@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 
 import HomeScreen from '../screens/HomeScreen';
+import SalesHistoryScreen from '../screens/SalesHistoryScreen';
 import ProductSelectionScreen from '../screens/ProductSelectionScreen';
 import BillScreen from '../screens/BillScreen';
 import BillPreviewScreen from '../screens/BillPreviewScreen';
@@ -19,6 +20,7 @@ function HomeStack() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, cardStyle: { backgroundColor: COLORS.background } }}>
       <Stack.Screen name="Home" component={HomeScreen} />
+      <Stack.Screen name="SalesHistory" component={SalesHistoryScreen} />
     </Stack.Navigator>
   );
 }

@@ -1,0 +1,93 @@
+import { supabase, IS_MOCK } from '../lib/supabase';
+
+// ─── MOCK DATA ────────────────────────────────────────────────────────────────
+const MOCK_PRODUCTS = [
+  { id: '1', name: 'Basmati Rice (5kg)', category: 'Grains', mrp: 380, wholesale_rate: 320, unit: 'Bag' },
+  { id: '2', name: 'Whole Wheat Flour (10kg)', category: 'Grains', mrp: 340, wholesale_rate: 280, unit: 'Bag' },
+  { id: '3', name: 'Toor Dal (1kg)', category: 'Pulses', mrp: 175, wholesale_rate: 145, unit: 'Kg' },
+  { id: '4', name: 'Chana Dal (1kg)', category: 'Pulses', mrp: 135, wholesale_rate: 110, unit: 'Kg' },
+  { id: '5', name: 'Moong Dal (1kg)', category: 'Pulses', mrp: 155, wholesale_rate: 130, unit: 'Kg' },
+  { id: '6', name: 'Refined Sunflower Oil (1L)', category: 'Oils', mrp: 150, wholesale_rate: 125, unit: 'Bottle' },
+  { id: '7', name: 'Mustard Oil (1L)', category: 'Oils', mrp: 170, wholesale_rate: 140, unit: 'Bottle' },
+  { id: '8', name: 'Groundnut Oil (1L)', category: 'Oils', mrp: 200, wholesale_rate: 165, unit: 'Bottle' },
+  { id: '9', name: 'Sugar (1kg)', category: 'Essentials', mrp: 50, wholesale_rate: 42, unit: 'Kg' },
+  { id: '10', name: 'Salt (1kg)', category: 'Essentials', mrp: 22, wholesale_rate: 18, unit: 'Kg' },
+  { id: '11', name: 'Turmeric Powder (100g)', category: 'Spices', mrp: 35, wholesale_rate: 28, unit: 'Pack' },
+  { id: '12', name: 'Red Chilli Powder (100g)', category: 'Spices', mrp: 45, wholesale_rate: 35, unit: 'Pack' },
+  { id: '13', name: 'Coriander Powder (100g)', category: 'Spices', mrp: 30, wholesale_rate: 22, unit: 'Pack' },
+  { id: '14', name: 'Cumin Seeds (100g)', category: 'Spices', mrp: 55, wholesale_rate: 45, unit: 'Pack' },
+  { id: '15', name: 'Black Pepper (50g)', category: 'Spices', mrp: 70, wholesale_rate: 55, unit: 'Pack' },
+  { id: '16', name: 'Tea (250g)', category: 'Beverages', mrp: 105, wholesale_rate: 85, unit: 'Pack' },
+  { id: '17', name: 'Coffee (100g)', category: 'Beverages', mrp: 145, wholesale_rate: 120, unit: 'Pack' },
+  { id: '18', name: 'Poha (500g)', category: 'Breakfast', mrp: 48, wholesale_rate: 38, unit: 'Pack' },
+  { id: '19', name: 'Vermicelli (200g)', category: 'Breakfast', mrp: 28, wholesale_rate: 22, unit: 'Pack' },
+  { id: '20', name: 'Semolina / Rava (500g)', category: 'Grains', mrp: 40, wholesale_rate: 32, unit: 'Pack' },
+];
+
+const MOCK_CATEGORIES = ['All', 'Grains', 'Pulses', 'Oils', 'Essentials', 'Spices', 'Beverages', 'Breakfast'];
+
+// ─── SERVICE FUNCTIONS ────────────────────────────────────────────────────────
+
+export async function searchProducts(query = '', category = 'All') {
+  if (IS_MOCK) {
+    let results = [...MOCK_PRODUCTS];
+    if (category && category !== 'All') {
+      results = results.filter(p => p.category === category);
+    }
+    if (query.trim()) {
+      const q = query.toLowerCase();
+      results = results.filter(p => p.name.toLowerCase().includes(q));
+    }
+    return { data: results, error: null };
+  }
+
+  let q = supabase.from('products').select('*');
+  if (query.trim()) q = q.ilike('name', `%${query}%`);
+  if (category && category !== 'All') q = q.eq('category', category);
+  return await q.order('name');
+}
+
+export async function getCategories() {
+  if (IS_MOCK) return { data: MOCK_CATEGORIES, error: null };
+
+  const { data, error } = await supabase
+    .from('products')
+    .select('category')
+    .order('category');
+
+  if (error) return { data: [], error };
+  const unique = ['All', ...new Set(data.map(r => r.category).filter(Boolean))];
+  return { data: unique, error: null };
+}
+
+export async function getAllProducts() {
+  if (IS_MOCK) return { data: MOCK_PRODUCTS, error: null };
+  return await supabase.from('products').select('*').order('name');
+}
+
+export async function addProduct(product) {
+  if (IS_MOCK) {
+    const newProduct = { ...product, id: String(Date.now()) };
+    MOCK_PRODUCTS.push(newProduct);
+    return { data: newProduct, error: null };
+  }
+  return await supabase.from('products').insert([product]).select().single();
+}
+
+export async function updateProduct(id, updates) {
+  if (IS_MOCK) {
+    const idx = MOCK_PRODUCTS.findIndex(p => p.id === id);
+    if (idx > -1) Object.assign(MOCK_PRODUCTS[idx], updates);
+    return { data: MOCK_PRODUCTS[idx], error: null };
+  }
+  return await supabase.from('products').update(updates).eq('id', id).select().single();
+}
+
+export async function deleteProduct(id) {
+  if (IS_MOCK) {
+    const idx = MOCK_PRODUCTS.findIndex(p => p.id === id);
+    if (idx > -1) MOCK_PRODUCTS.splice(idx, 1);
+    return { error: null };
+  }
+  return await supabase.from('products').delete().eq('id', id);
+}

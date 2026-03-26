@@ -1,0 +1,22 @@
+-- Seeding Products (MRP and Wholesale)
+INSERT INTO products (name, category, mrp, wholesale_rate, unit) VALUES
+('Basmati Rice (5kg)', 'Grains', 380, 320, 'Bag'),
+('Whole Wheat Flour (10kg)', 'Grains', 340, 280, 'Bag'),
+('Toor Dal (1kg)', 'Pulses', 175, 145, 'Kg'),
+('Chana Dal (1kg)', 'Pulses', 135, 110, 'Kg'),
+('Moong Dal (1kg)', 'Pulses', 155, 130, 'Kg'),
+('Refined Sunflower Oil (1L)', 'Oils', 150, 125, 'Bottle'),
+('Mustard Oil (1L)', 'Oils', 170, 140, 'Bottle'),
+('Groundnut Oil (1L)', 'Oils', 200, 165, 'Bottle'),
+('Sugar (1kg)', 'Essentials', 50, 42, 'Kg'),
+('Salt (1kg)', 'Essentials', 22, 18, 'Kg'),
+('Turmeric Powder (100g)', 'Spices', 35, 28, 'Pack'),
+('Red Chilli Powder (100g)', 'Spices', 45, 35, 'Pack'),
+('Coriander Powder (100g)', 'Spices', 30, 22, 'Pack'),
+('Cumin Seeds (100g)', 'Spices', 55, 45, 'Pack'),
+('Black Pepper (50g)', 'Spices', 70, 55, 'Pack'),
+('Tea (250g)', 'Beverages', 105, 85, 'Pack'),
+('Coffee (100g)', 'Beverages', 145, 120, 'Pack'),
+('Poha (500g)', 'Breakfast', 48, 38, 'Pack'),
+('Vermicelli (200g)', 'Breakfast', 28, 22, 'Pack'),
+('Semolina / Rava (500g)', 'Grains', 40, 32, 'Pack');

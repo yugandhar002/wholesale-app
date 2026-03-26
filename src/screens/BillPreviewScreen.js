@@ -336,7 +336,7 @@ export default function BillPreviewScreen({ navigation, route }) {
         <View style={styles.actions}>
           {!pastBill && (
             <GlassButton
-              title={saved ? '✓ Bill Saved' : saving ? 'Saving...' : 'Save Bill'}
+              title={saved ? '✓ Bill Saved' : saving ? 'Finalizing...' : 'Save Bill'}
               variant={saved ? 'success' : 'glass'}
               size="lg"
               fullWidth

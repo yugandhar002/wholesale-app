@@ -41,28 +41,33 @@ export async function saveBill({ customerName, items, subtotal, discount, total,
     return { data: bill, error: null };
   }
 
-  // Save the bill header
+  // Pre-calculate line items to minimize gap between DB calls
+  const itemsToSave = items.map(i => ({
+    product_id: i.product?.id || i.product_id,
+    product_name: i.product?.name || i.product_name,
+    mrp: i.product?.mrp || i.mrp || 0,
+    rate: i.product?.wholesale_rate || i.rate || 0,
+    unit: i.product?.unit || i.unit || '',
+    quantity: i.quantity,
+    subtotal: (i.product?.wholesale_rate || i.rate || 0) * i.quantity,
+  }));
+
+  // Save the bill header - only select the ID to minimize response size
   const { data: bill, error: billError } = await supabase
     .from('bills')
     .insert([{ customer_name: customerName, bill_number: billNumber, subtotal, discount, total_amount: total }])
-    .select()
+    .select('id')
     .single();
 
   if (billError) return { data: null, error: billError };
 
-  // Save the line items
-  const lineItems = items.map(i => ({
-    bill_id: bill.id,
-    product_id: i.product.id,
-    product_name: i.product.name,
-    mrp: i.product.mrp,
-    rate: i.product.wholesale_rate,
-    unit: i.product.unit,
-    quantity: i.quantity,
-    subtotal: i.product.wholesale_rate * i.quantity,
-  }));
+  // Attach bill_id to pre-mapped items
+  const lineItems = itemsToSave.map(item => ({ ...item, bill_id: bill.id }));
 
-  const { error: itemsError } = await supabase.from('bill_items').insert(lineItems);
+  const { error: itemsError } = await supabase
+    .from('bill_items')
+    .insert(lineItems);
+    
   if (itemsError) return { data: null, error: itemsError };
 
   return { data: bill, error: null };

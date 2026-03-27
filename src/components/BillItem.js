@@ -3,11 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, TextInput, Platform } from 'r
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS, FONTS, RADIUS, SHADOWS } from '../theme';
 
-export default function BillItem({
+const BillItem = ({
   item,
   onUpdateQuantity,
   onRemove
-}) {
+}) => {
   const { product, quantity } = item;
   const subtotal = product.wholesale_rate * quantity;
 
@@ -62,7 +62,9 @@ export default function BillItem({
       </View>
     </View>
   );
-}
+};
+
+export default React.memo(BillItem);
 
 const styles = StyleSheet.create({
   container: {

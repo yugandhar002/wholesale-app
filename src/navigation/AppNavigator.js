@@ -75,6 +75,13 @@ export default function AppNavigator() {
           name="NewBillTab"
           component={NewBillStack}
           options={{ title: 'New Bill' }}
+          listeners={({ navigation }) => ({
+            tabPress: (e) => {
+              // Always reset to product selection when tapping the "New Bill" tab
+              e.preventDefault();
+              navigation.navigate('NewBillTab', { screen: 'SelectProducts' });
+            },
+          })}
         />
         <Tab.Screen name="Products" component={ProductManagementScreen} options={{ title: 'Products' }} />
       </Tab.Navigator>

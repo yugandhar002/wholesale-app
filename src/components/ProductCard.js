@@ -4,13 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS, RADIUS, SPACING, SHADOWS } from '../theme';
 
-export default function ProductCard({
+const ProductCard = ({
   product,
   onAdd,
   onRemove,
   onUpdateQuantity,
   quantityInCart = 0
-}) {
+}) => {
   const scale = useRef(new Animated.Value(1)).current;
 
   const onPressIn = () => Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 40 }).start();
@@ -85,7 +85,9 @@ export default function ProductCard({
       </TouchableOpacity>
     </Animated.View>
   );
-}
+};
+
+export default React.memo(ProductCard);
 
 const styles = StyleSheet.create({
   wrapper: {

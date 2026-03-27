@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View, Text, StyleSheet, FlatList, SafeAreaView, StatusBar,
   TouchableOpacity, ActivityIndicator, ScrollView, Platform,
@@ -20,7 +21,9 @@ export default function ProductSelectionScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
 
   const debounceRef = useRef(null);
-  const { items, addItem, updateQuantity, isInCart, getQuantityInCart } = useBillStore();
+  const addItem = useBillStore(s => s.addItem);
+  const updateQuantity = useBillStore(s => s.updateQuantity);
+  const getQuantityInCart = useBillStore(s => s.getQuantityInCart);
   const itemCount = useBillStore(s => s.getItemCount());
 
   // Load categories once
@@ -41,16 +44,35 @@ export default function ProductSelectionScreen({ navigation }) {
     debounceRef.current = setTimeout(() => doSearch(query, category), 300);
     return () => clearTimeout(debounceRef.current);
   }, [query, category, doSearch]);
+  useFocusEffect(
+    useCallback(() => {
+      // Refresh list whenever tab is focused to show new products added in other tabs
+      doSearch(query, category);
+    }, [category, doSearch, query])
+  );
 
-  const renderProduct = ({ item }) => (
+  const handleUpdateQuantity = useCallback((id, qty) => {
+    updateQuantity(id, qty);
+  }, [updateQuantity]);
+
+  const handleAdd = useCallback((product) => {
+    addItem(product);
+  }, [addItem]);
+
+  const handleRemove = useCallback((id) => {
+    const currentQty = getQuantityInCart(id);
+    updateQuantity(id, currentQty - 1);
+  }, [getQuantityInCart, updateQuantity]);
+
+  const renderProduct = useCallback(({ item }) => (
     <ProductCard
       product={item}
       quantityInCart={getQuantityInCart(item.id)}
-      onAdd={addItem}
-      onRemove={(id) => updateQuantity(id, getQuantityInCart(id) - 1)}
-      onUpdateQuantity={updateQuantity}
+      onAdd={handleAdd}
+      onRemove={handleRemove}
+      onUpdateQuantity={handleUpdateQuantity}
     />
-  );
+  ), [getQuantityInCart, handleAdd, handleRemove, handleUpdateQuantity]);
 
   return (
     <SafeAreaView style={styles.safe}>

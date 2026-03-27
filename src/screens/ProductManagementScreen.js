@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View, Text, StyleSheet, FlatList, StatusBar,
   TouchableOpacity, Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
@@ -21,6 +21,7 @@ export default function ProductManagementScreen() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [sortBy, setSortBy] = useState('recent'); // Default to 'recent' (Recently Added)
 
   const fetchAll = useCallback(async () => {
     const { data } = await getAllProducts();
@@ -33,6 +34,19 @@ export default function ProductManagementScreen() {
     p.name.toLowerCase().includes(query.toLowerCase()) ||
     p.category?.toLowerCase().includes(query.toLowerCase())
   );
+
+  const sortedProducts = useMemo(() => {
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'name') {
+        return a.name.localeCompare(b.name);
+      } else if (sortBy === 'recent') {
+        const dateA = new Date(a.created_at || 0).getTime();
+        const dateB = new Date(b.created_at || 0).getTime();
+        return dateB - dateA; // Newest first
+      }
+      return 0;
+    });
+  }, [filtered, sortBy]);
 
   const openAdd = () => {
     setForm(EMPTY_FORM);
@@ -144,8 +158,26 @@ export default function ProductManagementScreen() {
         />
       </View>
 
+      <View style={styles.sortRow}>
+        <Text style={styles.sortLabel}>Sort by:</Text>
+        <TouchableOpacity 
+          style={[styles.sortChip, sortBy === 'name' && styles.sortChipActive]}
+          onPress={() => setSortBy('name')}
+        >
+          <Ionicons name="text" size={12} color={sortBy === 'name' ? COLORS.white : COLORS.primary} />
+          <Text style={[styles.sortChipText, sortBy === 'name' && styles.sortChipTextActive]}>A-Z</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.sortChip, sortBy === 'recent' && styles.sortChipActive]}
+          onPress={() => setSortBy('recent')}
+        >
+          <Ionicons name="time" size={12} color={sortBy === 'recent' ? COLORS.white : COLORS.primary} />
+          <Text style={[styles.sortChipText, sortBy === 'recent' && styles.sortChipTextActive]}>Recent</Text>
+        </TouchableOpacity>
+      </View>
+
       <FlatList
-        data={filtered}
+        data={sortedProducts}
         renderItem={renderItem}
         keyExtractor={item => item.id}
         contentContainerStyle={styles.list}
@@ -263,4 +295,40 @@ const styles = StyleSheet.create({
   },
   textInput: { fontSize: FONTS.sizes.md, color: COLORS.textDark, paddingVertical: 12, fontWeight: FONTS.weights.medium },
   modalActions: { flexDirection: 'row', marginTop: SPACING.xl },
+  sortRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: SPACING.xl,
+    paddingBottom: SPACING.md,
+    gap: SPACING.sm,
+  },
+  sortLabel: {
+    fontSize: 12,
+    color: COLORS.textMid,
+    fontWeight: FONTS.weights.semibold,
+    marginRight: 4,
+  },
+  sortChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: RADIUS.full,
+    borderWidth: 1,
+    borderColor: COLORS.primary + '20',
+    gap: 6,
+  },
+  sortChipActive: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  sortChipText: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: FONTS.weights.semibold,
+  },
+  sortChipTextActive: {
+    color: COLORS.white,
+  },
 });

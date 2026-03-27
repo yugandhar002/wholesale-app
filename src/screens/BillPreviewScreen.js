@@ -1,7 +1,7 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView,
-  StatusBar, TouchableOpacity, Alert, Share, Platform,
+  StatusBar, TouchableOpacity, Alert, Share, Platform, Linking,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -17,6 +17,7 @@ export default function BillPreviewScreen({ navigation, route }) {
 
   const storeItems = useBillStore(s => s.items);
   const storeCustomer = useBillStore(s => s.customerName);
+  const storePhone = useBillStore(s => s.customerPhone);
   const storeDiscount = useBillStore(s => s.discount);
   const storeSubtotal = useBillStore(s => s.getSubtotal());
   const storeTotal = useBillStore(s => s.getTotal());
@@ -25,23 +26,38 @@ export default function BillPreviewScreen({ navigation, route }) {
 
   // Snapshot data when screen opens so it persists even if store is cleared
   // If we're viewing a past bill, use its data instead of the store
-  const [billItems] = useState(pastBill ? pastBill.bill_items || [] : [...storeItems]);
-  const [custName] = useState(pastBill ? pastBill.customer_name : storeCustomer);
-  const [billDiscount] = useState(pastBill ? (pastBill.discount || 0) : storeDiscount);
-  const [subtotal] = useState(pastBill ? (pastBill.subtotal || pastBill.total_amount) : storeSubtotal);
-  const [total] = useState(pastBill ? pastBill.total_amount : storeTotal);
+  const [billItems, setBillItems] = useState(pastBill ? (pastBill.bill_items || pastBill.items || []) : [...storeItems]);
+  const [custName, setCustName] = useState(pastBill ? pastBill.customer_name : storeCustomer);
+  const [custPhone, setCustPhone] = useState(pastBill ? pastBill.customer_phone : storePhone);
+  const [billDiscount, setBillDiscount] = useState(pastBill ? (pastBill.discount || 0) : storeDiscount);
+  const [subtotal, setSubtotal] = useState(pastBill ? (pastBill.subtotal || pastBill.total_amount) : storeSubtotal);
+  const [total, setTotal] = useState(pastBill ? pastBill.total_amount : storeTotal);
 
-  const [totalSavings] = useState(() => {
+  const totalSavings = useMemo(() => {
     return billItems.reduce((sum, i) => {
       const mrp = i.product?.mrp || i.mrp || i.product?.wholesale_rate || i.rate || 0;
       const rate = i.product?.wholesale_rate || i.rate || 0;
       return sum + (mrp - rate) * i.quantity;
     }, 0);
-  });
+  }, [billItems]);
 
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(!!pastBill);
-  const [billNo] = useState(() => pastBill ? pastBill.bill_number : generateBillNumber());
+  const [billNo, setBillNo] = useState(() => pastBill ? pastBill.bill_number : generateBillNumber());
+
+  // Keep screen in sync when pastBill changes via navigation
+  useEffect(() => {
+    if (pastBill) {
+      setBillItems(pastBill.bill_items || pastBill.items || []);
+      setCustName(pastBill.customer_name);
+      setCustPhone(pastBill.customer_phone);
+      setBillDiscount(pastBill.discount || 0);
+      setSubtotal(pastBill.subtotal || pastBill.total_amount);
+      setTotal(pastBill.total_amount);
+      setSaved(true);
+      setBillNo(pastBill.bill_number);
+    }
+  }, [pastBill?.id, pastBill?.bill_number]);
 
   const dateStr = pastBill
     ? new Date(pastBill.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
@@ -78,26 +94,26 @@ export default function BillPreviewScreen({ navigation, route }) {
 <head>
 <meta charset="UTF-8" />
 <style>
-  body { font-family: Arial, sans-serif; margin: 30px; color: #1A1033; font-size: 13px; }
-  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 2px solid #6C3FE8; padding-bottom: 15px; }
+  body { font-family: Arial, sans-serif; margin: 30px; color: #1e293b; font-size: 13px; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 30px; border-bottom: 2px solid #1e293b; padding-bottom: 15px; }
   .shop-info { flex: 1; }
-  .shop-name { font-size: 32px; font-weight: 800; color: #6C3FE8; letter-spacing: -1px; text-transform: uppercase; margin: 0; }
-  .shop-sub { color: #8A80AA; font-size: 11px; margin-top: 4px; font-weight: 500; line-height: 1.5; }
+  .shop-name { font-size: 32px; font-weight: 800; color: #0f172a; letter-spacing: -1px; text-transform: uppercase; margin: 0; }
+  .shop-sub { color: #64748b; font-size: 11px; margin-top: 4px; font-weight: 500; line-height: 1.5; }
   .address-info { text-align: right; max-width: 250px; }
-  .address-text { color: #555; font-size: 11px; line-height: 1.4; font-weight: 500; }
-  .meta { display:flex; justify-content:space-between; margin-bottom: 20px; background: #F0F2FF; padding: 12px 16px; border-radius: 8px; }
-  .meta-col .label { color: #8A80AA; font-size: 11px; text-transform: uppercase; font-weight: 600; }
-  .meta-col .value { font-size: 13px; font-weight: 700; color: #1A1033; margin-top: 3px; }
+  .address-text { color: #475569; font-size: 11px; line-height: 1.4; font-weight: 500; }
+  .meta { display:flex; justify-content:space-between; margin-bottom: 20px; background: #f8fafc; padding: 12px 16px; border-radius: 8px; }
+  .meta-col .label { color: #64748b; font-size: 11px; text-transform: uppercase; font-weight: 600; }
+  .meta-col .value { font-size: 13px; font-weight: 700; color: #1e293b; margin-top: 3px; }
   table { width:100%; border-collapse: collapse; margin-top: 4px; }
-  th { background: #6C3FE8; color: white; padding: 9px 12px; text-align: left; font-size: 12px; }
-  td { padding: 9px 12px; border-bottom: 1px solid #E8EAFF; }
+  th { background: #1e293b; color: white; padding: 9px 12px; text-align: left; font-size: 12px; }
+  td { padding: 9px 12px; border-bottom: 1px solid #e2e8f0; }
   tr:last-child td { border-bottom: none; }
-  tr:nth-child(even) { background: #F8F9FF; }
+  tr:nth-child(even) { background: #f8fafc; }
   .totals { margin-top: 16px; float: right; width: 240px; }
   .totals-row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
-  .totals-divider { border-top: 2px solid #6C3FE8; margin: 8px 0; }
-  .total-final { font-size: 18px; font-weight: 800; color: #6C3FE8; }
-  .footer { clear:both; margin-top: 40px; text-align:center; color: #8A80AA; font-size: 11px; border-top: 1px solid #E8EAFF; padding-top: 16px; }
+  .totals-divider { border-top: 2px solid #1e293b; margin: 8px 0; }
+  .total-final { font-size: 18px; font-weight: 800; color: #0f172a; }
+  .footer { clear:both; margin-top: 40px; text-align:center; color: #94a3b8; font-size: 11px; border-top: 1px solid #e2e8f0; padding-top: 16px; }
 </style>
 </head>
 <body>
@@ -145,8 +161,8 @@ export default function BillPreviewScreen({ navigation, route }) {
   </table>
   <div class="totals">
     <div class="totals-row"><span>Subtotal</span><span>₹${subtotal.toLocaleString('en-IN')}</span></div>
-    ${totalSavings > 0 ? `<div class="totals-row"><span style="color:#6C3FE8">Wholesale Savings</span><span style="color:#6C3FE8">₹${totalSavings.toLocaleString('en-IN')}</span></div>` : ''}
-    ${billDiscount > 0 ? `<div class="totals-row"><span style="color:#38ef7d">Additional Discount</span><span style="color:#38ef7d">- ₹${Number(billDiscount).toLocaleString('en-IN')}</span></div>` : ''}
+    ${totalSavings > 0 ? `<div class="totals-row"><span style="color:#475569">Wholesale Savings</span><span style="color:#475569">₹${totalSavings.toLocaleString('en-IN')}</span></div>` : ''}
+    ${Number(billDiscount) > 0 ? `<div class="totals-row"><span style="color:#0f172a">Additional Discount</span><span style="color:#0f172a">- ₹${Number(billDiscount).toLocaleString('en-IN')}</span></div>` : ''}
     <div class="totals-divider"></div>
     <div class="totals-row"><span class="total-final">Total</span><span class="total-final">₹${total.toLocaleString('en-IN')}</span></div>
   </div>
@@ -177,6 +193,7 @@ export default function BillPreviewScreen({ navigation, route }) {
     setSaving(true);
     const { error } = await saveBill({
       customerName: custName || 'Walk-in Customer',
+      customerPhone: custPhone || '',
       items: billItems,
       subtotal,
       discount: billDiscount,
@@ -193,9 +210,49 @@ export default function BillPreviewScreen({ navigation, route }) {
     }
   };
 
+  const handleWhatsAppShare = () => {
+    if (!custPhone) {
+      Alert.alert('Phone Number Missing', 'Please provide a customer phone number to use direct WhatsApp sharing.');
+      return;
+    }
+
+    // Clean phone number (remove non-digits, add country code if missing)
+    let cleaned = custPhone.replace(/\D/g, '');
+    if (cleaned.length === 10) cleaned = '91' + cleaned; // Assume India if 10 digits
+
+    // Build detailed items list in requested format
+    const itemsSection = billItems.map(item => {
+      const name = (item.product?.name || item.product_name || '').trim();
+      const qty = item.quantity;
+      const rate = item.product?.wholesale_rate || item.rate || 0;
+      const mrp = item.product?.mrp || item.mrp || 0;
+      const amt = rate * qty;
+
+      return `*${name}*\nQty: ${qty}   Mrp: ₹${mrp}   WS: ₹${rate}   Amt: ₹${amt.toLocaleString('en-IN')}`;
+    }).join('\n\n');
+
+    const message = ` *RAJESHWARI WHOLESALE* (7873574186)\n\n` +
+      `${itemsSection}\n` +
+      `---------------------------------------------\n` +
+      `*Total Amount: ₹${total.toLocaleString('en-IN')}*\n` +
+      `---------------------------------------------\n` +
+      `Thank you for shopping!\n` +
+      `Visit Again`;
+
+    const url = `whatsapp://send?phone=${cleaned}&text=${encodeURIComponent(message)}`;
+
+    Linking.canOpenURL(url).then(supported => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        Alert.alert('WhatsApp Error', 'WhatsApp is not installed on this device.');
+      }
+    });
+  };
+
   const handleNewBill = () => {
     if (saved) {
-      navigation.navigate('Home');
+      navigation.navigate('NewBillTab', { screen: 'SelectProducts' });
       return;
     }
 
@@ -204,10 +261,19 @@ export default function BillPreviewScreen({ navigation, route }) {
       {
         text: 'New Bill', onPress: () => {
           clearBill();
-          navigation.navigate('Home');
+          navigation.navigate('NewBillTab', { screen: 'SelectProducts' });
         },
       },
     ]);
+  };
+
+  const handleBack = () => {
+    if (saved && !pastBill) {
+      // If we just saved a new bill, go back to Product Selection instead of empty Review page
+      navigation.navigate('NewBillTab', { screen: 'SelectProducts' });
+    } else {
+      navigation.goBack();
+    }
   };
 
   return (
@@ -219,7 +285,7 @@ export default function BillPreviewScreen({ navigation, route }) {
         styles.header,
         Platform.OS === 'android' && { paddingTop: (StatusBar.currentHeight || 0) + SPACING.md }
       ]}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity onPress={handleBack} style={styles.backBtn}>
           <Ionicons name="chevron-back" size={24} color={COLORS.primary} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{pastBill ? 'Bill Detail' : 'Review Bill'}</Text>
@@ -259,8 +325,16 @@ export default function BillPreviewScreen({ navigation, route }) {
 
           {/* Customer */}
           <View style={styles.customerRow}>
-            <Ionicons name="person-circle-outline" size={20} color={COLORS.primary} />
-            <Text style={styles.customerName}>{custName || 'Walk-in Customer'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+              <Ionicons name="person-circle-outline" size={20} color={COLORS.primary} />
+              <Text style={styles.customerName}>{custName || 'Walk-in Customer'}</Text>
+            </View>
+            {custPhone ? (
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <Ionicons name="call-outline" size={16} color={COLORS.textLight} style={{ marginRight: 4 }} />
+                <Text style={[styles.metaValue, { fontSize: 13 }]}>{custPhone}</Text>
+              </View>
+            ) : null}
           </View>
 
           {/* Divider */}
@@ -354,6 +428,15 @@ export default function BillPreviewScreen({ navigation, route }) {
             icon={<Ionicons name="share-outline" size={18} color={COLORS.white} />}
             onPress={handleExportPDF}
             style={{ marginBottom: SPACING.md }}
+          />
+          <GlassButton
+            title="Send to WhatsApp"
+            variant="glass"
+            size="lg"
+            fullWidth
+            icon={<Ionicons name="logo-whatsapp" size={18} color="#25D366" />}
+            onPress={handleWhatsAppShare}
+            style={{ marginBottom: SPACING.md, borderColor: '#25D366' }}
           />
           {/* <GlassButton
             title={saved ? "Back to Dashboard" : "New Bill"}

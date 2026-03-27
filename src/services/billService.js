@@ -18,23 +18,24 @@ const getLocalDayRange = () => {
 
 const MOCK_BILLS = [];
 
-export async function saveBill({ customerName, items, subtotal, discount, total, billNumber }) {
+export async function saveBill({ customerName, customerPhone, items, subtotal, discount, total, billNumber }) {
   if (IS_MOCK) {
     const bill = {
       id: String(Date.now()),
       bill_number: billNumber,
       customer_name: customerName,
+      customer_phone: customerPhone,
       subtotal,
       discount,
       total_amount: total,
       created_at: new Date().toISOString(),
       bill_items: items.map(i => ({
-        product_name: i.product.name,
-        mrp: i.product.mrp,
-        rate: i.product.wholesale_rate,
+        product_name: i.product?.name || i.product_name,
+        mrp: i.product?.mrp || i.mrp,
+        rate: i.product?.wholesale_rate || i.rate,
         quantity: i.quantity,
-        subtotal: i.product.wholesale_rate * i.quantity,
-        unit: i.product.unit,
+        subtotal: (i.product?.wholesale_rate || i.rate) * i.quantity,
+        unit: i.product?.unit || i.unit || '',
       })),
     };
     MOCK_BILLS.unshift(bill);
@@ -55,7 +56,14 @@ export async function saveBill({ customerName, items, subtotal, discount, total,
   // Save the bill header - only select the ID to minimize response size
   const { data: bill, error: billError } = await supabase
     .from('bills')
-    .insert([{ customer_name: customerName, bill_number: billNumber, subtotal, discount, total_amount: total }])
+    .insert([{ 
+      customer_name: customerName, 
+      customer_phone: customerPhone,
+      bill_number: billNumber, 
+      subtotal, 
+      discount, 
+      total_amount: total 
+    }])
     .select('id')
     .single();
 
@@ -157,7 +165,7 @@ export async function getDailySalesHistory() {
   try {
     const { data, error } = await supabase
       .from('bills')
-      .select('*')
+      .select('*, bill_items(*)')
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -179,6 +187,58 @@ export async function getDailySalesHistory() {
     };
   } catch (error) {
     console.error('Error fetching sales history:', error);
+    return { data: [], error };
+  }
+}
+
+export async function searchCustomers(query) {
+  if (!query || query.length < 2) return { data: [], error: null };
+
+  if (IS_MOCK) {
+    const unique = [];
+    const seen = new Set();
+    MOCK_BILLS.forEach(b => {
+      if (b.customer_name && b.customer_name.toLowerCase().includes(query.toLowerCase())) {
+        if (!seen.has(b.customer_name.toLowerCase())) {
+          seen.add(b.customer_name.toLowerCase());
+          unique.push({
+            customer_name: b.customer_name,
+            customer_phone: b.customer_phone
+          });
+        }
+      }
+    });
+    return { data: unique.slice(0, 5), error: null };
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('bills')
+      .select('customer_name, customer_phone')
+      .ilike('customer_name', `%${query}%`)
+      .not('customer_name', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+
+    // Filter unique by name in JS
+    const unique = [];
+    const seen = new Set();
+    data?.forEach(b => {
+      const nameKey = b.customer_name.trim().toLowerCase();
+      if (!seen.has(nameKey)) {
+        seen.add(nameKey);
+        unique.push({
+          customer_name: b.customer_name.trim(),
+          customer_phone: b.customer_phone
+        });
+      }
+    });
+    
+    return { data: unique.slice(0, 5), error: null };
+  } catch (error) {
+    console.error('Error searching customers:', error);
     return { data: [], error };
   }
 }

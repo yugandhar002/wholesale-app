@@ -3,6 +3,7 @@ import { create } from 'zustand';
 export const useBillStore = create((set, get) => ({
   items: [], // [{ product, quantity }]
   customerName: '',
+  customerPhone: '',
   discount: 0,
   isSaved: false,
 
@@ -40,10 +41,11 @@ export const useBillStore = create((set, get) => ({
   },
 
   setCustomerName: (name) => set({ customerName: name, isSaved: false }),
+  setCustomerPhone: (phone) => set({ customerPhone: phone, isSaved: false }),
   setDiscount: (discount) => set({ discount: Number(discount) || 0, isSaved: false }),
   setIsSaved: (val) => set({ isSaved: val }),
 
-  clearBill: () => set({ items: [], customerName: '', discount: 0, isSaved: false }),
+  clearBill: () => set({ items: [], customerName: '', customerPhone: '', discount: 0, isSaved: false }),
 
   // ── Computed ─────────────────────────────────────────────────────────────────
   getSubtotal: () => {

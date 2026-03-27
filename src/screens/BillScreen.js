@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, SafeAreaView,
   StatusBar, TouchableOpacity, TextInput, Alert, Platform,
@@ -9,12 +9,15 @@ import BillItem from '../components/BillItem';
 import GlassButton from '../components/GlassButton';
 import { useBillStore } from '../store/billStore';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../theme';
+import { searchCustomers } from '../services/billService';
 
 export default function BillScreen({ navigation }) {
   const items = useBillStore(s => s.items);
   const customerName = useBillStore(s => s.customerName);
+  const customerPhone = useBillStore(s => s.customerPhone);
   const discount = useBillStore(s => s.discount);
   const setCustomerName = useBillStore(s => s.setCustomerName);
+  const setCustomerPhone = useBillStore(s => s.setCustomerPhone);
   const setDiscount = useBillStore(s => s.setDiscount);
   const updateQuantity = useBillStore(s => s.updateQuantity);
   const removeItem = useBillStore(s => s.removeItem);
@@ -24,13 +27,59 @@ export default function BillScreen({ navigation }) {
   const subtotal = getSubtotal();
   const total = getTotal();
 
-  const handleGenerateBill = () => {
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const isSelectionRef = useRef(false);
+
+  useEffect(() => {
+    // If name was just selected from the list, skip fetching suggestions again
+    if (isSelectionRef.current) {
+      isSelectionRef.current = false;
+      return;
+    }
+
+    const fetchSuggestions = async () => {
+      if (customerName.length >= 2) {
+        const { data, error } = await searchCustomers(customerName);
+        if (!error && data) {
+          setSuggestions(data);
+          setShowSuggestions(data.length > 0);
+        }
+      } else {
+        setSuggestions([]);
+        setShowSuggestions(false);
+      }
+    };
+
+    const timeoutId = setTimeout(fetchSuggestions, 350);
+    return () => clearTimeout(timeoutId);
+  }, [customerName]);
+
+  const handleUpdateQuantity = useCallback((id, qty) => {
+    updateQuantity(id, qty);
+  }, [updateQuantity]);
+
+  const handleRemoveItem = useCallback((id) => {
+    removeItem(id);
+  }, [removeItem]);
+
+  const handleSelectCustomer = useCallback((cust) => {
+    isSelectionRef.current = true;
+    setCustomerName(cust.customer_name);
+    if (cust.customer_phone) {
+      setCustomerPhone(cust.customer_phone);
+    }
+    setSuggestions([]);
+    setShowSuggestions(false);
+  }, [setCustomerName, setCustomerPhone]);
+
+  const handleGenerateBill = useCallback(() => {
     if (items.length === 0) {
       Alert.alert('Empty Bill', 'Please add at least one product.');
       return;
     }
-    navigation.navigate('BillPreview');
-  };
+    navigation.navigate('NewBillTab', { screen: 'BillPreview' });
+  }, [items.length, navigation]);
 
   const handleClearBill = () => {
     Alert.alert('Clear Bill', 'Remove all items from this bill?', [
@@ -63,14 +112,51 @@ export default function BillScreen({ navigation }) {
         {/* ── Customer + Discount ─────────────────────── */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Customer Details</Text>
+          <View style={{ zIndex: 10 }}>
+            <View style={styles.inputCard}>
+              <Ionicons name="person-outline" size={18} color={COLORS.textLight} style={styles.inputIcon} />
+              <TextInput
+                style={styles.textInput}
+                placeholder="Customer name (optional)"
+                placeholderTextColor={COLORS.textLight}
+                value={customerName}
+                onChangeText={setCustomerName}
+                onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+              />
+            </View>
+
+            {showSuggestions && (
+              <View style={styles.suggestionsContainer}>
+                {suggestions.map((item, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      styles.suggestionItem,
+                      index !== suggestions.length - 1 && styles.suggestionBorder
+                    ]}
+                    onPress={() => handleSelectCustomer(item)}
+                  >
+                    <View style={styles.suggestionInfo}>
+                      <Text style={styles.suggestionName}>{item.customer_name}</Text>
+                      {item.customer_phone && (
+                        <Text style={styles.suggestionPhone}>{item.customer_phone}</Text>
+                      )}
+                    </View>
+                    <Ionicons name="add-circle-outline" size={20} color={COLORS.primary} />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+          </View>
           <View style={styles.inputCard}>
-            <Ionicons name="person-outline" size={18} color={COLORS.textLight} style={styles.inputIcon} />
+            <Ionicons name="call-outline" size={18} color={COLORS.textLight} style={styles.inputIcon} />
             <TextInput
               style={styles.textInput}
-              placeholder="Customer name (optional)"
+              placeholder="Phone number (optional)"
               placeholderTextColor={COLORS.textLight}
-              value={customerName}
-              onChangeText={setCustomerName}
+              value={customerPhone}
+              onChangeText={setCustomerPhone}
+              keyboardType="phone-pad"
             />
           </View>
           <View style={styles.inputCard}>
@@ -118,8 +204,8 @@ export default function BillScreen({ navigation }) {
               <BillItem
                 key={item.product.id}
                 item={item}
-                onUpdateQuantity={updateQuantity}
-                onRemove={removeItem}
+                onUpdateQuantity={handleUpdateQuantity}
+                onRemove={handleRemoveItem}
               />
             ))
           )}
@@ -338,5 +424,41 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: 'rgba(0, 0, 0, 0.05)',
     ...SHADOWS.strong,
+  },
+  suggestionsContainer: {
+    position: 'absolute',
+    top: 55,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+    borderRadius: RADIUS.lg,
+    padding: SPACING.xs,
+    borderWidth: 1.5,
+    borderColor: 'rgba(108, 63, 232, 0.2)',
+    ...SHADOWS.card,
+    zIndex: 100,
+  },
+  suggestionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: SPACING.md,
+  },
+  suggestionBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  suggestionInfo: {
+    flex: 1,
+  },
+  suggestionName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.textDark,
+  },
+  suggestionPhone: {
+    fontSize: 12,
+    color: COLORS.textLight,
+    marginTop: 2,
   },
 });
